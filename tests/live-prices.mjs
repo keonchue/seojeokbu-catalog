@@ -42,10 +42,10 @@ function grab(name) {
   throw new Error(`${name} 의 끝을 못 찾았습니다`);
 }
 
-const NAMES = ['DATA', 'won', 'krw', 'pctOf', 'offPrice', 'sale', 'pr', 'readLive', 'applyLive'];
+const NAMES = ['DATA', 'won', 'krw', 'pctOf', 'offPrice', 'sale', 'badge', 'pr', 'readLive', 'applyLive'];
 const ctx = vm.createContext({ console });
-vm.runInContext(NAMES.map(grab).join('\n') + '\n;globalThis.__api = { DATA, won, sale, pr, readLive, applyLive };', ctx);
-const { DATA, pr, readLive, applyLive } = ctx.__api;
+vm.runInContext(NAMES.map(grab).join('\n') + '\n;globalThis.__api = { DATA, won, sale, badge, pr, readLive, applyLive };', ctx);
+const { DATA, badge, pr, readLive, applyLive } = ctx.__api;
 
 let fails = 0;
 const eq = (name, got, want) => {
@@ -86,6 +86,10 @@ has('pr: 100% 할인 → 가격 문의 아님', pr({ price: 5000, pct: 100 }), '
 eq('pr: 정가 0 → 가격 문의', pr({ price: 0, pct: 0 }), '가격 문의');
 has('pr: 할인도서 + 앱 할인 → 최종가', pr({ price: 20000, pct: 10, dc: true }), '할인가 : 18,000원');
 has('pr: CSV 반값할인(sale) 은 50%', pr({ price: 40000, sale: true }), '20,000원');
+
+eq('badge: 할인율 배지', badge({ price: 1000, pct: 30 }), true);
+eq('badge: 할인도서 칸 책엔 배지 없음 (채림 2026-11-14: 할인율 없이)', badge({ price: 1000, pct: 30, dc: true }), false);
+eq('badge: 가격 문의 책엔 배지 없음', badge({ price: 0, pct: 50 }), false);
 
 console.log(fails ? `\n${fails}개 실패` : '\n모두 통과');
 process.exit(fails ? 1 : 0);

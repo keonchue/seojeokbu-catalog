@@ -179,6 +179,8 @@ const krw = p => (p || 0).toLocaleString("ko-KR") + "원";   // 할인해서 0�
 // 할인율(%). 앱(서적부 POS)에 이어진 책은 앱의 할인율(i.pct)을, 아니면 books.csv 의 '반값할인'(50%)을 쓴다
 const pctOf = i => i.pct != null ? i.pct : (i.sale ? 50 : 0);
 const sale = i => pctOf(i) > 0;
+// 할인율 배지 — 할인도서 칸 책은 할인율 없이 '할인가 : ○원' 만 (채림 2026-11-14), 가격 문의 책도 배지 없음
+const badge = i => sale(i) && !i.dc && !!i.price;
 const offPrice = i => Math.round(i.price * (100 - pctOf(i)) / 100);   // 앱과 같은 식
 const pr = i => !i.price ? won(0)
   : i.dc ? `<span class="dcp">할인가 : ${krw(sale(i) ? offPrice(i) : i.price)}</span>`   // 할인 도서 (채림 2026-11-14: 할인율 없이 '할인가 : ○원', 빨간 글씨)
@@ -276,13 +278,13 @@ function render(q) {
   const meta = i => [i.color, i.tr].filter(Boolean).join(" · ");
   const card = i => `
         <button class="card" type="button" data-no="${i.no}" aria-label="${i.no}번 ${esc(i.name)} 크게 보기">
-          <div class="photo"><span class="no">${i.no}번</span>${i.ref ? '<span class="ref">참고 사진</span>' : ""}${sale(i) ? `<span class="sale">${pctOf(i)}% 할인</span>` : ""}
+          <div class="photo"><span class="no">${i.no}번</span>${i.ref ? '<span class="ref">참고 사진</span>' : ""}${badge(i) ? `<span class="sale">${pctOf(i)}% 할인</span>` : ""}
             ${i.img ? `<img src="${i.img}" alt="${esc(i.name)} 표지" loading="lazy">` : '<span class="none">사진 준비 중</span>'}</div>
           <div class="info"><div class="name">${esc(i.name)}</div>
             ${meta(i) ? `<div class="meta">${esc(meta(i))}</div>` : ""}
             <div class="price">${pr(i)}</div>${i.detail ? '<div class="more">자세히 보기 ›</div>' : ""}</div>
         </button>`;
-  const row = i => `<div class="row"><span class="n">${i.no}</span><span class="t">${esc(i.name)}${meta(i) ? ` <span class="meta">(${esc(meta(i))})</span>` : ""}</span><span class="p">${sale(i) ? `<span class="off">${pctOf(i)}%</span>` : ""}${pr(i)}</span></div>`;
+  const row = i => `<div class="row"><span class="n">${i.no}</span><span class="t">${esc(i.name)}${meta(i) ? ` <span class="meta">(${esc(meta(i))})</span>` : ""}</span><span class="p">${badge(i) ? `<span class="off">${pctOf(i)}%</span>` : ""}${pr(i)}</span></div>`;
   DATA.sections.forEach(s => {
     const grid = s.items.filter(i => !i.list && !i.dc && hit(i));
     rest.push(...s.items.filter(i => i.list && !i.dc && hit(i)));
@@ -341,7 +343,7 @@ main.addEventListener("click", e => {
   if (i.detail) {
     sheet.innerHTML = `
       <div class="dhead"><div class="t"><h3 id="ov-title">${i.no}번 · ${esc(i.name)}${i.color ? " (" + esc(i.color) + ")" : ""}</h3>
-        <div class="pp">${sale(i) ? `<span class="off">${pctOf(i)}% 할인</span>` : ""}${pr(i)}</div></div>
+        <div class="pp">${badge(i) ? `<span class="off">${pctOf(i)}% 할인</span>` : ""}${pr(i)}</div></div>
         <button class="close" type="button" id="close" aria-label="닫기">×</button></div>
       ${detailHTML(i)}
       <p class="dfoot">주문하실 때 <b>${i.no}번</b>이라고 말씀해 주세요.</p>`;
@@ -355,7 +357,7 @@ main.addEventListener("click", e => {
   sheet.innerHTML = `
     <div class="big">${i.img ? `<img src="${i.img}" alt="${esc(i.name)} 표지">` : '<span class="none">사진 준비 중</span>'}
       <button class="close" type="button" id="close" aria-label="닫기">×</button></div>
-    <div class="body"><h3 id="ov-title">${esc(i.name)}</h3><div class="p">${sale(i) ? `<span class="off">${pctOf(i)}% 할인</span>` : ""}${pr(i)}</div>
+    <div class="body"><h3 id="ov-title">${esc(i.name)}</h3><div class="p">${badge(i) ? `<span class="off">${pctOf(i)}% 할인</span>` : ""}${pr(i)}</div>
       <dl class="specs">${specs.map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join("")}</dl>
       ${i.ref ? '<p class="order">참고 사진이에요. 실제 색상이나 판이 조금 다를 수 있어요.</p>' : ""}
       <p class="order">주문하실 때 <b>${i.no}번</b>이라고 말씀해 주세요.</p></div>`;
@@ -380,7 +382,7 @@ function detailHTML(i) {
         </div>
       </div>` : ""}
       ${D.feat.length ? `<ul class="feat">${D.feat.map(f => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
-      <div class="dprice"><span>가격${sale(i) ? ` <span class="off">${pctOf(i)}% 할인</span>` : ""}</span><b>${pr(i)}</b></div>
+      <div class="dprice"><span>가격${badge(i) ? ` <span class="off">${pctOf(i)}% 할인</span>` : ""}</span><b>${pr(i)}</b></div>
     </div>
     ${D.photos.length ? `<div class="dphotos">${D.photos.map(p => `<figure><img src="${p[0]}" alt="${esc(i.name)} ${esc(p[1])}" loading="lazy">${p[1] ? `<figcaption>${esc(p[1])}</figcaption>` : ""}</figure>`).join("")}</div>` : ""}
     ${D.est ? '<p class="dfoot">* 표시는 추정치예요. 실물을 확인한 뒤 고칠 예정이에요.</p>' : ""}`;
@@ -390,4 +392,4 @@ ov.addEventListener("click", e => { if (e.target === ov || e.target.id === "clos
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !ov.hidden) closeOv(); });
 </script>
 
-</body></html>
+</body></html>
