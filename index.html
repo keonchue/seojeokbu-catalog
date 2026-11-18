@@ -182,13 +182,56 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 const main = document.getElementById("main");
 const all = [];
 
+// books.csv (깃허브에서 같이 고치는 책 목록) — 있으면 이름·가격·할인 등을 이 파일 값으로 덮어쓴다.
+// 상세페이지 내용(크기·소개·사진)은 아래 DATA에 그대로 있고, 번호로 이어진다.
+function parseCsv(t) {
+  const rows = []; let row = [], cell = "", inQ = false;
+  for (let k = 0; k < t.length; k++) {
+    const c = t[k];
+    if (inQ) { if (c === '"') { if (t[k + 1] === '"') { cell += '"'; k++; } else inQ = false; } else cell += c; continue; }
+    if (c === '"') inQ = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && t[k + 1] === "\n") k++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ""));
+}
+function applyCsv(text) {
+  const rows = parseCsv(text.replace(/^﻿/, ""));
+  const head = (rows.shift() || []).map(h => h.trim());
+  const at = (r, name) => { const k = head.indexOf(name); return k < 0 ? "" : (r[k] || "").trim(); };
+  if (!["번호", "분류", "이름", "가격"].every(n => head.includes(n))) return;
+  const yes = v => /^(o|ㅇ|○|y|yes|예|1|v|true)$/i.test(v);
+  const byNo = {}, bySec = {};
+  DATA.sections.forEach(s => { s.items.forEach(i => byNo[i.no] = i); s.next = []; bySec[s.title] = s; bySec[s.key] = s; });
+  let used = 0;
+  rows.forEach(r => {
+    const no = parseInt(at(r, "번호"), 10), sec = bySec[at(r, "분류")];
+    if (!no || !sec) return;
+    const i = byNo[no] || { no };
+    i.name = at(r, "이름") || i.name || "";
+    i.color = at(r, "색상"); i.tr = at(r, "번역");
+    i.price = parseInt(at(r, "가격").replace(/[^\d]/g, ""), 10) || 0;
+    i.dc = yes(at(r, "할인도서")); i.sale = yes(at(r, "반값할인")); i.list = yes(at(r, "목록으로")); i.ref = yes(at(r, "참고사진"));
+    const img = at(r, "사진"); i.img = img ? (img.includes("/") ? img : "img/" + img) : "";
+    sec.next.push(i); used++;
+  });
+  if (used) DATA.sections.forEach(s => { s.items = s.next; });
+  DATA.sections.forEach(s => delete s.next);
+}
+
 const chips = document.getElementById("chips");
+function start() {
 DATA.sections.filter(s => s.items.some(i => !i.list && !i.dc)).map(s => [s.key, s.title]).concat([["dc", "할인 도서"], ["etc", "그 외 책들"]]).forEach(([key, title]) => {
   const b = document.createElement("button");
   b.className = key === "dc" ? "chip dc" : "chip"; b.type = "button"; b.textContent = title;
   b.onclick = () => { const el = document.getElementById(key); if (el && !el.hidden) el.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
   chips.appendChild(b);
 });
+DATA.sections.forEach(s => s.items.forEach(i => all[i.no] = i));
+render("");
+}
 
 const SEC_NOTE = {
   kgg: "개역개정 성경책에는 모두 찬송가가 들어있지 않습니다.",
@@ -242,10 +285,13 @@ function render(q) {
   main.innerHTML = shown ? html : `<p class="empty">‘${esc(q)}’에 맞는 책이 없어요. 다른 이름이나 번호로 찾아 보세요.</p>`;
   document.getElementById("clear").hidden = !t;
 }
-DATA.sections.forEach(s => s.items.forEach(i => all[i.no] = i));
-render("");
+fetch("books.csv", { cache: "no-store" })
+  .then(r => r.ok ? r.text() : "")
+  .then(t => { if (t) try { applyCsv(t); } catch (e) { console.warn("books.csv", e); } })
+  .catch(() => {})
+  .finally(start);
 
-const q = document.getElementById("q");
+const q =document.getElementById("q");
 q.addEventListener("input", () => render(q.value));
 document.getElementById("clear").onclick = () => { q.value = ""; render(""); q.focus(); };
 
